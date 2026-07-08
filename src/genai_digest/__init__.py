@@ -1,0 +1,2 @@
+"""GenAI daily digest package."""
+

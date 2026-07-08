@@ -1,0 +1,47 @@
+name: Daily GenAI Digest
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 7 * * *"
+      timezone: "Asia/Kolkata"
+
+permissions:
+  contents: write
+
+jobs:
+  run-digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run daily digest
+        env:
+          GENAI_REPORT_FROM: ${{ secrets.GENAI_REPORT_FROM }}
+          GENAI_REPORT_TO: ${{ secrets.GENAI_REPORT_TO }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_USE_TLS: ${{ secrets.SMTP_USE_TLS }}
+          DIGEST_TIMEZONE: Asia/Kolkata
+        run: python main.py
+
+      - name: Commit updated state
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet --exit-code; then
+            echo "No state changes to commit."
+            exit 0
+          fi
+          git add state
+          git commit -m "chore: update sent digest state [skip ci]"
+          git push
+

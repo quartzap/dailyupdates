@@ -1,0 +1,47 @@
+{
+  "timezone": "Asia/Kolkata",
+  "lookback_hours": 30,
+  "max_items_per_category": 8,
+  "request_timeout_seconds": 20,
+  "reports_dir": "reports",
+  "state_path": "state/sent_items.json",
+  "categories": [
+    {
+      "key": "product_announcements",
+      "label": "Product Announcements",
+      "google_news_query": "(\"generative AI\" OR LLM OR \"AI model\" OR copilot) (launch OR release OR announcement OR unveiled OR introduced)",
+      "keywords": ["launch", "release", "announcement", "unveiled", "introduced", "copilot", "assistant", "model"]
+    },
+    {
+      "key": "trade_deals",
+      "label": "Trade Deals",
+      "google_news_query": "(\"generative AI\" OR LLM OR \"AI startup\") (deal OR partnership OR contract OR investment OR funding OR acquisition)",
+      "keywords": ["deal", "partnership", "contract", "investment", "funding", "acquisition", "agreement"]
+    },
+    {
+      "key": "industry_use_cases",
+      "label": "Industry Use Cases",
+      "google_news_query": "(\"generative AI\" OR LLM OR copilot) (deployed OR implemented OR pilot OR workflow OR automation OR use case)",
+      "keywords": ["deployed", "implemented", "pilot", "workflow", "automation", "customer service", "healthcare", "bank", "retail"]
+    },
+    {
+      "key": "hardware",
+      "label": "Hardware",
+      "google_news_query": "(AI chip OR GPU OR accelerator OR inference hardware) (launch OR roadmap OR supply OR performance)",
+      "keywords": ["gpu", "chip", "accelerator", "processor", "inference", "datacenter", "training cluster"]
+    },
+    {
+      "key": "research_papers",
+      "label": "Research Papers",
+      "google_news_query": "(\"generative AI\" OR \"large language model\" OR \"diffusion model\") (paper OR research OR benchmark OR arxiv)",
+      "keywords": ["paper", "research", "benchmark", "arxiv", "study", "preprint"]
+    }
+  ],
+  "rss_feeds": [],
+  "arxiv": {
+    "category": "research_papers",
+    "search_query": "(all:\"generative ai\" OR all:\"large language model\" OR all:\"diffusion model\" OR all:\"multimodal model\")",
+    "max_results": 12
+  }
+}
+

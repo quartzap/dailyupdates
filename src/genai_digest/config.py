@@ -1,0 +1,150 @@
+from __future__ import annotations
+
+import json
+import os
+from dataclasses import dataclass
+from pathlib import Path
+from urllib.parse import urlencode
+
+
+@dataclass(slots=True)
+class CategoryConfig:
+    key: str
+    label: str
+    google_news_query: str
+    keywords: list[str]
+
+
+@dataclass(slots=True)
+class RssFeedConfig:
+    label: str
+    category: str
+    url: str
+
+
+@dataclass(slots=True)
+class ArxivConfig:
+    category: str
+    search_query: str
+    max_results: int
+
+
+@dataclass(slots=True)
+class EmailConfig:
+    from_email: str | None
+    to_email: str | None
+    smtp_host: str | None
+    smtp_port: int
+    smtp_username: str | None
+    smtp_password: str | None
+    smtp_use_tls: bool
+
+    @property
+    def is_ready(self) -> bool:
+        return bool(self.from_email and self.to_email and self.smtp_host)
+
+
+@dataclass(slots=True)
+class AppConfig:
+    timezone: str
+    lookback_hours: int
+    max_items_per_category: int
+    categories: list[CategoryConfig]
+    rss_feeds: list[RssFeedConfig]
+    arxiv: ArxivConfig
+    email: EmailConfig
+    reports_dir: Path
+    state_path: Path
+    request_timeout_seconds: int
+
+    @property
+    def category_labels(self) -> dict[str, str]:
+        return {category.key: category.label for category in self.categories}
+
+
+def load_dotenv(dotenv_path: Path) -> None:
+    if not dotenv_path.exists():
+        return
+    for raw_line in dotenv_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+def build_google_news_rss_url(query: str) -> str:
+    params = urlencode(
+        {
+            "q": query,
+            "hl": "en-US",
+            "gl": "US",
+            "ceid": "US:en",
+        }
+    )
+    return f"https://news.google.com/rss/search?{params}"
+
+
+def load_config(project_root: Path, config_path: Path | None = None) -> AppConfig:
+    resolved_config_path = config_path or project_root / "digest_config.json"
+    raw = json.loads(resolved_config_path.read_text(encoding="utf-8"))
+
+    categories = [
+        CategoryConfig(
+            key=item["key"],
+            label=item["label"],
+            google_news_query=item["google_news_query"],
+            keywords=item.get("keywords", []),
+        )
+        for item in raw["categories"]
+    ]
+    rss_feeds = [
+        RssFeedConfig(
+            label=item["label"],
+            category=item["category"],
+            url=item["url"],
+        )
+        for item in raw.get("rss_feeds", [])
+    ]
+    arxiv_cfg = raw["arxiv"]
+    arxiv = ArxivConfig(
+        category=arxiv_cfg["category"],
+        search_query=arxiv_cfg["search_query"],
+        max_results=int(arxiv_cfg.get("max_results", 12)),
+    )
+
+    env = os.environ
+    email = EmailConfig(
+        from_email=env.get("GENAI_REPORT_FROM"),
+        to_email=env.get("GENAI_REPORT_TO"),
+        smtp_host=env.get("SMTP_HOST"),
+        smtp_port=int(env.get("SMTP_PORT", "587")),
+        smtp_username=env.get("SMTP_USERNAME"),
+        smtp_password=env.get("SMTP_PASSWORD"),
+        smtp_use_tls=env.get("SMTP_USE_TLS", "true").lower() not in {"0", "false", "no"},
+    )
+
+    reports_dir = project_root / raw.get("reports_dir", "reports")
+    state_path = project_root / raw.get("state_path", "state/sent_items.json")
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+
+    return AppConfig(
+        timezone=env.get("DIGEST_TIMEZONE", raw.get("timezone", "Asia/Kolkata")),
+        lookback_hours=int(env.get("LOOKBACK_HOURS", raw.get("lookback_hours", 30))),
+        max_items_per_category=int(
+            env.get(
+                "MAX_ITEMS_PER_CATEGORY",
+                raw.get("max_items_per_category", 8),
+            )
+        ),
+        categories=categories,
+        rss_feeds=rss_feeds,
+        arxiv=arxiv,
+        email=email,
+        reports_dir=reports_dir,
+        state_path=state_path,
+        request_timeout_seconds=int(
+            env.get("REQUEST_TIMEOUT_SECONDS", raw.get("request_timeout_seconds", 20))
+        ),
+    )
