@@ -50,8 +50,10 @@ def main() -> int:
     should_send_email = not args.no_email and not args.sample
     if should_send_email:
         if not config.email.is_ready:
+            missing = ", ".join(config.email.missing_fields)
             raise SystemExit(
-                "Email configuration is incomplete. Populate .env or environment variables before sending."
+                "Email configuration is incomplete. Missing required settings: "
+                f"{missing}. Populate .env or GitHub Actions secrets before sending."
             )
         send_email(config.email, subject, html_report, text_report)
         save_seen_items(

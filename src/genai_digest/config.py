@@ -41,7 +41,22 @@ class EmailConfig:
 
     @property
     def is_ready(self) -> bool:
-        return bool(self.from_email and self.to_email and self.smtp_host)
+        return not self.missing_fields
+
+    @property
+    def missing_fields(self) -> list[str]:
+        missing: list[str] = []
+        if not self.from_email:
+            missing.append("GENAI_REPORT_FROM")
+        if not self.to_email:
+            missing.append("GENAI_REPORT_TO")
+        if not self.smtp_host:
+            missing.append("SMTP_HOST")
+        if not self.smtp_username:
+            missing.append("SMTP_USERNAME")
+        if not self.smtp_password:
+            missing.append("SMTP_PASSWORD")
+        return missing
 
 
 @dataclass(slots=True)
