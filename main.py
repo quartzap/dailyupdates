@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -26,10 +27,45 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def register_secret_masks(values: list[str]) -> None:
+    if os.environ.get("GITHUB_ACTIONS", "").lower() != "true":
+        return
+    for value in values:
+        print(f"::add-mask::{value}")
+
+
+def validate_email_config(config) -> list[str]:
+    issues: list[str] = []
+    if config.email.missing_fields:
+        issues.append(
+            "Missing required settings: " + ", ".join(config.email.missing_fields)
+        )
+    if config.email.placeholder_fields:
+        issues.append(
+            "Placeholder values detected for: " + ", ".join(config.email.placeholder_fields)
+        )
+    return issues
+
+
+def redact_error_message(message: str, config) -> str:
+    redacted = message
+    replacements = {
+        config.email.from_email: "<redacted:GENAI_REPORT_FROM>",
+        config.email.to_email: "<redacted:GENAI_REPORT_TO>",
+        config.email.smtp_username: "<redacted:SMTP_USERNAME>",
+        config.email.smtp_password: "<redacted:SMTP_PASSWORD>",
+    }
+    for raw_value, replacement in replacements.items():
+        if raw_value:
+            redacted = redacted.replace(raw_value, replacement)
+    return redacted
+
+
 def main() -> int:
     args = parse_args()
     load_dotenv(PROJECT_ROOT / ".env")
     config = load_config(PROJECT_ROOT, args.config)
+    register_secret_masks(config.email.masked_values)
     now = datetime.now(ZoneInfo(config.timezone))
 
     seen_items = {} if args.sample else load_seen_items(config.state_path)
@@ -49,13 +85,21 @@ def main() -> int:
 
     should_send_email = not args.no_email and not args.sample
     if should_send_email:
-        if not config.email.is_ready:
-            missing = ", ".join(config.email.missing_fields)
+        issues = validate_email_config(config)
+        if issues:
             raise SystemExit(
-                "Email configuration is incomplete. Missing required settings: "
-                f"{missing}. Populate .env or GitHub Actions secrets before sending."
+                "Email configuration is incomplete. "
+                + " ".join(issues)
+                + " Populate .env or GitHub Actions secrets before sending."
             )
-        send_email(config.email, subject, html_report, text_report)
+        try:
+            send_email(config.email, subject, html_report, text_report)
+        except Exception as exc:
+            safe_message = redact_error_message(str(exc), config)
+            raise SystemExit(
+                "Email delivery failed. Check SMTP settings and credentials. "
+                f"Mailer error: {safe_message}"
+            ) from None
         save_seen_items(
             config.state_path,
             existing=seen_items,

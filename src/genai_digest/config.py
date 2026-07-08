@@ -58,6 +58,36 @@ class EmailConfig:
             missing.append("SMTP_PASSWORD")
         return missing
 
+    @property
+    def placeholder_fields(self) -> list[str]:
+        placeholder_values = {
+            "GENAI_REPORT_FROM": {"your-email@gmail.com", "example@example.com"},
+            "GENAI_REPORT_TO": {"your-email@gmail.com", "example@example.com"},
+            "SMTP_USERNAME": {"your-email@gmail.com", "example@example.com"},
+            "SMTP_PASSWORD": {"your-app-password", "changeme", "example-password"},
+        }
+        field_values = {
+            "GENAI_REPORT_FROM": self.from_email,
+            "GENAI_REPORT_TO": self.to_email,
+            "SMTP_USERNAME": self.smtp_username,
+            "SMTP_PASSWORD": self.smtp_password,
+        }
+        placeholders: list[str] = []
+        for field_name, value in field_values.items():
+            if value and value.lower() in placeholder_values.get(field_name, set()):
+                placeholders.append(field_name)
+        return placeholders
+
+    @property
+    def masked_values(self) -> list[str]:
+        values = [
+            self.from_email,
+            self.to_email,
+            self.smtp_username,
+            self.smtp_password,
+        ]
+        return [value for value in values if value]
+
 
 @dataclass(slots=True)
 class AppConfig:
