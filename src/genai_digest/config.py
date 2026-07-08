@@ -73,6 +73,21 @@ def load_dotenv(dotenv_path: Path) -> None:
         os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
+def env_value(env: dict[str, str], key: str, default: str | None = None) -> str | None:
+    value = env.get(key)
+    if value is None:
+        return default
+    stripped = value.strip()
+    return stripped if stripped else default
+
+
+def env_int(env: dict[str, str], key: str, default: int) -> int:
+    value = env_value(env, key)
+    if value is None:
+        return default
+    return int(value)
+
+
 def build_google_news_rss_url(query: str) -> str:
     params = urlencode(
         {
@@ -115,13 +130,13 @@ def load_config(project_root: Path, config_path: Path | None = None) -> AppConfi
 
     env = os.environ
     email = EmailConfig(
-        from_email=env.get("GENAI_REPORT_FROM"),
-        to_email=env.get("GENAI_REPORT_TO"),
-        smtp_host=env.get("SMTP_HOST"),
-        smtp_port=int(env.get("SMTP_PORT", "587")),
-        smtp_username=env.get("SMTP_USERNAME"),
-        smtp_password=env.get("SMTP_PASSWORD"),
-        smtp_use_tls=env.get("SMTP_USE_TLS", "true").lower() not in {"0", "false", "no"},
+        from_email=env_value(env, "GENAI_REPORT_FROM"),
+        to_email=env_value(env, "GENAI_REPORT_TO"),
+        smtp_host=env_value(env, "SMTP_HOST"),
+        smtp_port=env_int(env, "SMTP_PORT", 587),
+        smtp_username=env_value(env, "SMTP_USERNAME"),
+        smtp_password=env_value(env, "SMTP_PASSWORD"),
+        smtp_use_tls=(env_value(env, "SMTP_USE_TLS", "true") or "true").lower() not in {"0", "false", "no"},
     )
 
     reports_dir = project_root / raw.get("reports_dir", "reports")
@@ -130,21 +145,18 @@ def load_config(project_root: Path, config_path: Path | None = None) -> AppConfi
     state_path.parent.mkdir(parents=True, exist_ok=True)
 
     return AppConfig(
-        timezone=env.get("DIGEST_TIMEZONE", raw.get("timezone", "Asia/Kolkata")),
-        lookback_hours=int(env.get("LOOKBACK_HOURS", raw.get("lookback_hours", 30))),
-        max_items_per_category=int(
-            env.get(
-                "MAX_ITEMS_PER_CATEGORY",
-                raw.get("max_items_per_category", 8),
-            )
-        ),
+        timezone=env_value(env, "DIGEST_TIMEZONE", raw.get("timezone", "Asia/Kolkata")) or "Asia/Kolkata",
+        lookback_hours=env_int(env, "LOOKBACK_HOURS", int(raw.get("lookback_hours", 30))),
+        max_items_per_category=env_int(env, "MAX_ITEMS_PER_CATEGORY", int(raw.get("max_items_per_category", 8))),
         categories=categories,
         rss_feeds=rss_feeds,
         arxiv=arxiv,
         email=email,
         reports_dir=reports_dir,
         state_path=state_path,
-        request_timeout_seconds=int(
-            env.get("REQUEST_TIMEOUT_SECONDS", raw.get("request_timeout_seconds", 20))
+        request_timeout_seconds=env_int(
+            env,
+            "REQUEST_TIMEOUT_SECONDS",
+            int(raw.get("request_timeout_seconds", 20)),
         ),
     )
