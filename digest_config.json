@@ -45,9 +45,8 @@
   ],
   "rss_feeds": [],
   "social": {
-    "platforms": ["reddit", "x"],
-    "max_items_per_category": 3,
-    "discord_channel_ids": []
+    "platforms": ["x"],
+    "max_items_per_category": 3
   },
   "arxiv": {
     "category": "research_papers",

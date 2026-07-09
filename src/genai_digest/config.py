@@ -93,8 +93,6 @@ class EmailConfig:
 class SocialConfig:
     platforms: set[str]
     max_items_per_category: int
-    discord_bot_token: str | None
-    discord_channel_ids: list[str]
 
 
 @dataclass(slots=True)
@@ -205,7 +203,7 @@ def load_config(project_root: Path, config_path: Path | None = None) -> AppConfi
         for item in env_csv(
             env,
             "SOCIAL_PLATFORMS",
-            raw_social.get("platforms", ["reddit", "x"]),
+            raw_social.get("platforms", ["x"]),
         )
     }
     social = SocialConfig(
@@ -215,8 +213,6 @@ def load_config(project_root: Path, config_path: Path | None = None) -> AppConfi
             "SOCIAL_MAX_ITEMS_PER_CATEGORY",
             int(raw_social.get("max_items_per_category", 3)),
         ),
-        discord_bot_token=env_value(env, "DISCORD_BOT_TOKEN"),
-        discord_channel_ids=env_csv(env, "DISCORD_CHANNEL_IDS", raw_social.get("discord_channel_ids", [])),
     )
 
     reports_dir = project_root / raw.get("reports_dir", "reports")

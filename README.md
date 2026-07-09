@@ -10,14 +10,14 @@ This utility gathers fresh GenAI updates from free web sources, groups them into
 - Industry use cases
 - Hardware developments
 - Cybersecurity and GenAI risk
-- Social signals from Reddit, X-focused public search, and optional Discord channels
+- Social signals from X-focused public search
 
 ## Free stack
 
 - Runtime: Python 3.12
 - News ingestion: Google News RSS search feeds
 - Research ingestion: arXiv public API
-- Social ingestion: Reddit public RSS, X-focused public search through indexed web/news results, and optional Discord bot channel reads
+- Social ingestion: X-focused public search through indexed web/news results
 - Storage: JSON file committed back to the repo for dedupe state
 - Scheduler and hosting: GitHub Actions scheduled workflow
 - Email delivery: Gmail SMTP or any SMTP account you already own
@@ -88,8 +88,6 @@ This utility gathers fresh GenAI updates from free web sources, groups them into
    - `SMTP_USERNAME`
    - `SMTP_PASSWORD`
    - `SMTP_USE_TLS`
-   - `DISCORD_BOT_TOKEN` optional, only if you want Discord channel scanning
-   - `DISCORD_CHANNEL_IDS` optional, comma-separated channel IDs for the Discord bot to read
 3. The fastest way to prepare the secrets file locally is to fill in `.github-secrets`.
 4. Add the secrets either in the GitHub web UI or with GitHub CLI:
 
@@ -107,9 +105,7 @@ If you use Gmail SMTP, enable 2-Step Verification and generate an App Password f
 ## Notes
 
 - The current default source mix is Google News RSS plus arXiv.
-- Reddit search is enabled by default through public RSS.
 - X coverage uses a public indexed-search approximation for x.com/twitter.com results because X does not provide a reliable free global trending API.
-- Discord coverage is optional and only scans channels where you provide a bot token and channel IDs; Discord does not provide a free global public trending search API.
 - You can extend `digest_config.json` with curated RSS feeds later for company blogs or niche publications.
 - The report is saved into `reports/` on every run.
 - A PDF version of the report is generated and attached to every email.

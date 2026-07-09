@@ -7,10 +7,8 @@ from urllib.parse import urlsplit, urlunsplit
 from .config import AppConfig
 from .fetchers import (
     fetch_arxiv,
-    fetch_discord_social,
     fetch_generic_rss,
     fetch_google_news,
-    fetch_reddit_social,
     fetch_x_social,
 )
 from .models import Article, DigestResult
@@ -39,7 +37,7 @@ def score_article(article: Article, now: datetime) -> float:
     base_score = max(0.0, 96.0 - age_hours)
     category_bonus = len(article.categories) * 3.0
     source_bonus = 5.0 if article.source_type == "paper" else 0.0
-    if article.source_type in {"reddit", "x", "discord"}:
+    if article.source_type == "x":
         source_bonus -= 2.0
     return round(base_score + category_bonus + source_bonus, 2)
 
@@ -76,25 +74,12 @@ def collect_articles(config: AppConfig, now: datetime, sample_mode: bool = False
     except Exception as exc:
         warnings.append(f"arXiv fetch failed: {exc}")
 
-    if "reddit" in config.social.platforms:
-        for category in config.categories:
-            try:
-                collected.extend(fetch_reddit_social(category, config))
-            except Exception as exc:
-                warnings.append(f"Reddit fetch failed for {category.label}: {exc}")
-
     if "x" in config.social.platforms or "twitter" in config.social.platforms:
         for category in config.categories:
             try:
                 collected.extend(fetch_x_social(category, config))
             except Exception as exc:
                 warnings.append(f"X search failed for {category.label}: {exc}")
-
-    if "discord" in config.social.platforms and config.social.discord_bot_token and config.social.discord_channel_ids:
-        try:
-            collected.extend(fetch_discord_social(config))
-        except Exception as exc:
-            warnings.append(f"Discord fetch failed: {exc}")
 
     return collected, warnings
 
