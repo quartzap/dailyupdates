@@ -25,6 +25,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install audio tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y espeak-ng ffmpeg
+
       - name: Run daily digest
         env:
           GENAI_REPORT_FROM: ${{ secrets.GENAI_REPORT_FROM }}
@@ -35,6 +40,9 @@ jobs:
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           SMTP_USE_TLS: ${{ secrets.SMTP_USE_TLS }}
           DIGEST_TIMEZONE: Asia/Kolkata
+          AUDIO_ENABLED: "true"
+          AUDIO_VOICE: en-us
+          AUDIO_SPEED: "160"
         run: python main.py
 
       - name: Commit updated state

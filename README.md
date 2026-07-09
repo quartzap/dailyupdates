@@ -18,6 +18,7 @@ This utility gathers fresh GenAI updates from free web sources, groups them into
 - Storage: JSON file committed back to the repo for dedupe state
 - Scheduler and hosting: GitHub Actions scheduled workflow
 - Email delivery: Gmail SMTP or any SMTP account you already own
+- Audio brief: offline `espeak-ng` plus `ffmpeg` on the GitHub Actions runner
 
 ## Why this stack
 
@@ -33,6 +34,7 @@ This utility gathers fresh GenAI updates from free web sources, groups them into
 - `src/genai_digest/fetchers.py`: web fetching and XML parsing
 - `src/genai_digest/pipeline.py`: filtering, categorization, scoring, dedupe
 - `src/genai_digest/report.py`: HTML and text report rendering
+- `src/genai_digest/audio.py`: podcast script and MP3 generation
 - `src/genai_digest/emailer.py`: SMTP email delivery
 - `state/sent_items.json`: saved IDs of already-sent items
 - `.github/workflows/daily_digest.yml`: scheduler for daily runs
@@ -62,6 +64,12 @@ This utility gathers fresh GenAI updates from free web sources, groups them into
 
 ```powershell
 & 'C:\Users\quartzap\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' .\main.py
+```
+
+6. Generate a local podcast script, and an MP3 if audio tools are installed:
+
+```powershell
+& 'C:\Users\quartzap\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' .\main.py --sample --with-audio
 ```
 
 ## GitHub setup
@@ -95,3 +103,6 @@ If you use Gmail SMTP, enable 2-Step Verification and generate an App Password f
 - You can extend `digest_config.json` with curated RSS feeds later for company blogs or niche publications.
 - The report is saved into `reports/` on every run.
 - Scheduled workflows run in GitHub Actions using cron with timezone-aware scheduling.
+- The default email is intentionally concise. Open a headline to read the full source item.
+- The scheduled workflow attaches an MP3 audio brief when `AUDIO_ENABLED=true`.
+- NotebookLM can create Audio Overviews from uploaded sources, but this project does not automate NotebookLM directly because there is no stable public NotebookLM API in use here. A practical manual workflow is to upload the generated podcast script or HTML report into NotebookLM and generate an Audio Overview there.

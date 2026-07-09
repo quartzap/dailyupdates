@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import re
+import time
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from html import unescape
+from urllib.error import HTTPError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree
@@ -18,8 +20,17 @@ HTML_TAG_RE = re.compile(r"<[^>]+>")
 
 def fetch_url(url: str, timeout_seconds: int) -> str:
     request = Request(url, headers={"User-Agent": USER_AGENT})
-    with urlopen(request, timeout=timeout_seconds) as response:
-        return response.read().decode("utf-8", errors="replace")
+    for attempt in range(3):
+        try:
+            with urlopen(request, timeout=timeout_seconds) as response:
+                return response.read().decode("utf-8", errors="replace")
+        except HTTPError as exc:
+            if exc.code not in {429, 500, 502, 503, 504} or attempt == 2:
+                raise
+            retry_after = exc.headers.get("Retry-After")
+            delay_seconds = int(retry_after) if retry_after and retry_after.isdigit() else 5 * (attempt + 1)
+            time.sleep(delay_seconds)
+    raise RuntimeError(f"Unable to fetch {url}")
 
 
 def clean_text(value: str) -> str:
@@ -118,4 +129,3 @@ def fetch_arxiv(config: AppConfig) -> list[Article]:
             )
         )
     return articles
-

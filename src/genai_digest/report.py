@@ -20,7 +20,6 @@ def render_article_html(article: Article, timezone_name: str) -> str:
     <div class="item">
       <a class="headline" href="{escape(article.url)}">{escape(article.title)}</a>
       <div class="meta">{escape(article.source)} | {published_local:%d %b %Y %I:%M %p %Z} | {escape(categories)}</div>
-      <p>{escape(article.summary or "No summary available.")}</p>
     </div>
     """
 
@@ -30,8 +29,7 @@ def render_article_text(article: Article, timezone_name: str) -> str:
     return (
         f"- {article.title}\n"
         f"  Source: {article.source} | {published_local:%Y-%m-%d %H:%M %Z}\n"
-        f"  Link: {article.url}\n"
-        f"  Summary: {article.summary or 'No summary available.'}\n"
+        f"  Details: {article.url}\n"
     )
 
 
@@ -124,7 +122,7 @@ def render_html_report(digest: DigestResult, config: AppConfig) -> str:
         letter-spacing: 0.08em;
       }}
       .item {{
-        padding: 12px 0;
+        padding: 10px 0;
         border-top: 1px solid #e8eef5;
       }}
       .item:first-of-type {{
@@ -140,10 +138,6 @@ def render_html_report(digest: DigestResult, config: AppConfig) -> str:
         margin-top: 6px;
         color: #607080;
         font-size: 12px;
-      }}
-      .item p {{
-        margin: 10px 0 0 0;
-        line-height: 1.5;
       }}
       .empty {{
         color: #607080;
@@ -169,7 +163,7 @@ def render_html_report(digest: DigestResult, config: AppConfig) -> str:
     <div class="container">
       <section class="hero">
         <h1>Daily GenAI Intelligence Brief</h1>
-        <p>{digest.total_articles} fresh items across product announcements, deals, research, use cases, and hardware.</p>
+        <p>{digest.total_articles} fresh items. Open a headline for the source details.</p>
         <p>Generated at {generated_local:%d %b %Y %I:%M %p %Z}.</p>
       </section>
       <section class="card" style="margin-top: 20px;">
@@ -209,4 +203,3 @@ def render_text_report(digest: DigestResult, config: AppConfig) -> str:
         lines.append("")
 
     return "\n".join(lines).strip() + "\n"
-

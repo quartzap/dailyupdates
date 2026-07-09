@@ -12,6 +12,7 @@ SRC_PATH = PROJECT_ROOT / "src"
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
+from genai_digest.audio import generate_mp3_from_script, render_podcast_script
 from genai_digest.config import load_config, load_dotenv
 from genai_digest.emailer import send_email
 from genai_digest.pipeline import build_digest
@@ -24,6 +25,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config", type=Path, default=PROJECT_ROOT / "digest_config.json")
     parser.add_argument("--sample", action="store_true", help="Use embedded sample data instead of live web fetches.")
     parser.add_argument("--no-email", action="store_true", help="Generate the report without sending an email.")
+    parser.add_argument("--with-audio", action="store_true", help="Generate an MP3 audio brief.")
+    parser.add_argument("--no-audio", action="store_true", help="Disable audio generation even if AUDIO_ENABLED=true.")
     return parser.parse_args()
 
 
@@ -61,6 +64,20 @@ def redact_error_message(message: str, config) -> str:
     return redacted
 
 
+def env_bool(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def env_int(name: str, default: int) -> int:
+    value = os.environ.get(name)
+    if value is None or not value.strip():
+        return default
+    return int(value)
+
+
 def main() -> int:
     args = parse_args()
     load_dotenv(PROJECT_ROOT / ".env")
@@ -75,6 +92,25 @@ def main() -> int:
         seen_ids=set(seen_items),
         sample_mode=args.sample,
     )
+
+    podcast_script = render_podcast_script(digest, config)
+    podcast_script_path = config.reports_dir / f"genai-podcast-script-{now:%Y%m%d}.txt"
+    podcast_script_path.write_text(podcast_script, encoding="utf-8")
+
+    audio_enabled = (args.with_audio or env_bool("AUDIO_ENABLED")) and not args.no_audio
+    audio_attachments: list[Path] = []
+    if audio_enabled:
+        audio_path = config.reports_dir / f"genai-audio-brief-{now:%Y%m%d}.mp3"
+        try:
+            generate_mp3_from_script(
+                podcast_script_path,
+                audio_path,
+                voice=os.environ.get("AUDIO_VOICE", "en-us"),
+                speed=env_int("AUDIO_SPEED", 160),
+            )
+            audio_attachments.append(audio_path)
+        except Exception as exc:
+            digest.warnings.append(f"Audio generation failed: {exc}")
 
     html_report = render_html_report(digest, config)
     text_report = render_text_report(digest, config)
@@ -93,7 +129,13 @@ def main() -> int:
                 + " Populate .env or GitHub Actions secrets before sending."
             )
         try:
-            send_email(config.email, subject, html_report, text_report)
+            send_email(
+                config.email,
+                subject,
+                html_report,
+                text_report,
+                attachments=audio_attachments,
+            )
         except Exception as exc:
             safe_message = redact_error_message(str(exc), config)
             raise SystemExit(
@@ -114,6 +156,9 @@ def main() -> int:
     print(f"Subject: {subject}")
     print(f"Fresh items: {digest.total_articles}")
     print(f"Report written to: {report_path}")
+    print(f"Podcast script written to: {podcast_script_path}")
+    if audio_attachments:
+        print(f"Audio brief written to: {audio_attachments[0]}")
     if should_send_email:
         print("Email delivery: sent")
     elif args.sample:
