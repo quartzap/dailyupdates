@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import shutil
 import subprocess
 from pathlib import Path
@@ -9,6 +10,7 @@ from .models import Article, DigestResult
 
 
 def render_podcast_script(digest: DigestResult, config: AppConfig) -> str:
+    top_article_ids = {article.id for article in digest.top_articles[:6]}
     lines = [
         "Daily GenAI intelligence brief.",
         f"Today there are {digest.total_articles} fresh signals across the tracked areas.",
@@ -22,7 +24,11 @@ def render_podcast_script(digest: DigestResult, config: AppConfig) -> str:
         lines.append("")
 
     for category_key, label in config.category_labels.items():
-        articles = digest.grouped_articles.get(category_key, [])[:3]
+        articles = [
+            article
+            for article in digest.grouped_articles.get(category_key, [])
+            if article.id not in top_article_ids
+        ][:3]
         if not articles:
             continue
         lines.append(f"In {label}:")
@@ -37,9 +43,34 @@ def render_podcast_script(digest: DigestResult, config: AppConfig) -> str:
 def generate_mp3_from_script(
     script_path: Path,
     output_path: Path,
+    voice: str = "en-IN-NeerjaNeural",
+    rate: str = "+0%",
+    speed: int = 160,
+) -> str:
+    text = script_path.read_text(encoding="utf-8")
+    try:
+        return _generate_with_edge_tts(text, output_path, voice=voice, rate=rate)
+    except Exception:
+        return _generate_with_espeak(script_path, output_path, speed=speed)
+
+
+def _generate_with_edge_tts(text: str, output_path: Path, voice: str, rate: str) -> str:
+    import edge_tts
+
+    async def synthesize() -> None:
+        communicate = edge_tts.Communicate(text, voice=voice, rate=rate)
+        await communicate.save(str(output_path))
+
+    asyncio.run(synthesize())
+    return "edge-tts"
+
+
+def _generate_with_espeak(
+    script_path: Path,
+    output_path: Path,
     voice: str = "en-us",
     speed: int = 160,
-) -> None:
+) -> str:
     espeak_path = shutil.which("espeak-ng") or shutil.which("espeak")
     ffmpeg_path = shutil.which("ffmpeg")
     if not espeak_path:
@@ -83,10 +114,21 @@ def generate_mp3_from_script(
         text=True,
     )
     wav_path.unlink(missing_ok=True)
+    return "espeak"
 
 
 def _article_audio_line(index: int, article: Article) -> str:
-    summary = article.summary.strip() if article.summary else ""
+    summary = _compact_for_audio(article.summary) if article.summary else ""
     if summary:
         return f"{index}. {article.title}. {summary}"
     return f"{index}. {article.title}."
+
+
+def _compact_for_audio(text: str, max_chars: int = 220) -> str:
+    compacted = " ".join(text.split())
+    if len(compacted) <= max_chars:
+        return compacted
+    sentence_end = compacted.rfind(".", 0, max_chars)
+    if sentence_end >= 80:
+        return compacted[: sentence_end + 1]
+    return compacted[:max_chars].rsplit(" ", 1)[0] + "."

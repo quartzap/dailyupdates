@@ -35,6 +35,13 @@ def score_article(article: Article, now: datetime) -> float:
     return round(base_score + category_bonus + source_bonus, 2)
 
 
+def primary_category(article: Article, config: AppConfig) -> str | None:
+    for category in config.categories:
+        if category.key in article.categories:
+            return category.key
+    return None
+
+
 def collect_articles(config: AppConfig, now: datetime, sample_mode: bool = False) -> tuple[list[Article], list[str]]:
     if sample_mode:
         articles = build_sample_articles(now.astimezone(timezone.utc))
@@ -86,8 +93,13 @@ def build_digest(
         if article.id in seen_ids:
             continue
         existing = deduped.get(article.id)
-        if existing is None or article.score > existing.score:
+        if existing is None:
             deduped[article.id] = article
+        else:
+            existing.categories.update(article.categories)
+            if article.score > existing.score:
+                article.categories.update(existing.categories)
+                deduped[article.id] = article
 
     sorted_articles = sorted(
         deduped.values(),
@@ -97,12 +109,12 @@ def build_digest(
 
     grouped: dict[str, list[Article]] = defaultdict(list)
     for article in sorted_articles:
-        for category_key in sorted(article.categories):
-            if category_key not in config.category_labels:
-                continue
-            if len(grouped[category_key]) >= config.max_items_per_category:
-                continue
-            grouped[category_key].append(article)
+        category_key = primary_category(article, config)
+        if category_key is None:
+            continue
+        if len(grouped[category_key]) >= config.max_items_per_category:
+            continue
+        grouped[category_key].append(article)
 
     top_articles = sorted_articles[: min(10, len(sorted_articles))]
     return DigestResult(
@@ -112,4 +124,3 @@ def build_digest(
         total_articles=len(sorted_articles),
         warnings=warnings,
     )
-

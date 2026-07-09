@@ -27,6 +27,7 @@ jobs:
 
       - name: Install audio tooling
         run: |
+          python -m pip install --disable-pip-version-check edge-tts==7.2.8
           sudo apt-get update
           sudo apt-get install -y espeak-ng ffmpeg
 
@@ -41,7 +42,8 @@ jobs:
           SMTP_USE_TLS: ${{ secrets.SMTP_USE_TLS }}
           DIGEST_TIMEZONE: Asia/Kolkata
           AUDIO_ENABLED: "true"
-          AUDIO_VOICE: en-us
+          AUDIO_VOICE: en-IN-NeerjaNeural
+          AUDIO_RATE: "+0%"
           AUDIO_SPEED: "160"
         run: python main.py
 

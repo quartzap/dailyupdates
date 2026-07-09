@@ -36,8 +36,13 @@ def render_article_text(article: Article, timezone_name: str) -> str:
 def render_html_report(digest: DigestResult, config: AppConfig) -> str:
     category_blocks: list[str] = []
     labels = config.category_labels
+    top_article_ids = {article.id for article in digest.top_articles[:5]}
     for category_key, label in labels.items():
-        articles = digest.grouped_articles.get(category_key, [])
+        articles = [
+            article
+            for article in digest.grouped_articles.get(category_key, [])
+            if article.id not in top_article_ids
+        ]
         items = "".join(render_article_html(article, config.timezone) for article in articles)
         empty_state = "<p class='empty'>No new items found in this window.</p>" if not articles else ""
         category_blocks.append(
@@ -185,10 +190,21 @@ def render_text_report(digest: DigestResult, config: AppConfig) -> str:
     lines = [render_subject(digest.generated_at, config.timezone), ""]
     lines.append(f"Fresh items: {digest.total_articles}")
     lines.append("")
+    top_article_ids = {article.id for article in digest.top_articles[:5]}
+    if digest.top_articles:
+        lines.append("Top Signals")
+        lines.append("-----------")
+        for article in digest.top_articles[:5]:
+            lines.append(render_article_text(article, config.timezone))
+        lines.append("")
     for category_key, label in config.category_labels.items():
         lines.append(label)
         lines.append("-" * len(label))
-        articles = digest.grouped_articles.get(category_key, [])
+        articles = [
+            article
+            for article in digest.grouped_articles.get(category_key, [])
+            if article.id not in top_article_ids
+        ]
         if not articles:
             lines.append("No new items found in this window.")
         else:

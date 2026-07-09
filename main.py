@@ -102,12 +102,17 @@ def main() -> int:
     if audio_enabled:
         audio_path = config.reports_dir / f"genai-audio-brief-{now:%Y%m%d}.mp3"
         try:
-            generate_mp3_from_script(
+            audio_engine = generate_mp3_from_script(
                 podcast_script_path,
                 audio_path,
-                voice=os.environ.get("AUDIO_VOICE", "en-us"),
+                voice=os.environ.get("AUDIO_VOICE", "en-IN-NeerjaNeural"),
+                rate=os.environ.get("AUDIO_RATE", "+0%"),
                 speed=env_int("AUDIO_SPEED", 160),
             )
+            if audio_engine != "edge-tts":
+                digest.warnings.append(
+                    "Audio used fallback speech engine; install edge-tts for more natural audio."
+                )
             audio_attachments.append(audio_path)
         except Exception as exc:
             digest.warnings.append(f"Audio generation failed: {exc}")
