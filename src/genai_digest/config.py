@@ -90,6 +90,14 @@ class EmailConfig:
 
 
 @dataclass(slots=True)
+class SocialConfig:
+    platforms: set[str]
+    max_items_per_category: int
+    discord_bot_token: str | None
+    discord_channel_ids: list[str]
+
+
+@dataclass(slots=True)
 class AppConfig:
     timezone: str
     lookback_hours: int
@@ -101,6 +109,7 @@ class AppConfig:
     reports_dir: Path
     state_path: Path
     request_timeout_seconds: int
+    social: SocialConfig
 
     @property
     def category_labels(self) -> dict[str, str]:
@@ -131,6 +140,13 @@ def env_int(env: dict[str, str], key: str, default: int) -> int:
     if value is None:
         return default
     return int(value)
+
+
+def env_csv(env: dict[str, str], key: str, default: list[str]) -> list[str]:
+    raw_value = env_value(env, key)
+    if raw_value is None:
+        return default
+    return [item.strip() for item in raw_value.replace("\n", ",").split(",") if item.strip()]
 
 
 def build_google_news_rss_url(query: str) -> str:
@@ -183,6 +199,25 @@ def load_config(project_root: Path, config_path: Path | None = None) -> AppConfi
         smtp_password=env_value(env, "SMTP_PASSWORD"),
         smtp_use_tls=(env_value(env, "SMTP_USE_TLS", "true") or "true").lower() not in {"0", "false", "no"},
     )
+    raw_social = raw.get("social", {})
+    social_platforms = {
+        item.lower()
+        for item in env_csv(
+            env,
+            "SOCIAL_PLATFORMS",
+            raw_social.get("platforms", ["reddit", "x"]),
+        )
+    }
+    social = SocialConfig(
+        platforms=social_platforms,
+        max_items_per_category=env_int(
+            env,
+            "SOCIAL_MAX_ITEMS_PER_CATEGORY",
+            int(raw_social.get("max_items_per_category", 3)),
+        ),
+        discord_bot_token=env_value(env, "DISCORD_BOT_TOKEN"),
+        discord_channel_ids=env_csv(env, "DISCORD_CHANNEL_IDS", raw_social.get("discord_channel_ids", [])),
+    )
 
     reports_dir = project_root / raw.get("reports_dir", "reports")
     state_path = project_root / raw.get("state_path", "state/sent_items.json")
@@ -204,4 +239,5 @@ def load_config(project_root: Path, config_path: Path | None = None) -> AppConfi
             "REQUEST_TIMEOUT_SECONDS",
             int(raw.get("request_timeout_seconds", 20)),
         ),
+        social=social,
     )

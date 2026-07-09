@@ -8,9 +8,10 @@ from .config import AppConfig
 from .models import Article, DigestResult
 
 
-def render_subject(generated_at: datetime, timezone_name: str) -> str:
+def render_subject(generated_at: datetime, timezone_name: str, weekly: bool = False) -> str:
     local_time = generated_at.astimezone(ZoneInfo(timezone_name))
-    return f"Daily GenAI Intelligence Brief | {local_time:%Y-%m-%d}"
+    edition = "Weekly GenAI Intelligence Brief" if weekly else "Daily GenAI Intelligence Brief"
+    return f"{edition} | {local_time:%Y-%m-%d}"
 
 
 def render_article_html(article: Article, timezone_name: str) -> str:
@@ -36,12 +37,15 @@ def render_article_text(article: Article, timezone_name: str) -> str:
 def render_html_report(digest: DigestResult, config: AppConfig) -> str:
     category_blocks: list[str] = []
     labels = config.category_labels
-    top_article_ids = {article.id for article in digest.top_articles[:5]}
+    weekly_articles = digest.weekly_articles[:8]
+    weekly_article_ids = {article.id for article in weekly_articles}
+    top_articles = [article for article in digest.top_articles if article.id not in weekly_article_ids][:5]
+    top_article_ids = {article.id for article in top_articles}
     for category_key, label in labels.items():
         articles = [
             article
             for article in digest.grouped_articles.get(category_key, [])
-            if article.id not in top_article_ids
+            if article.id not in top_article_ids and article.id not in weekly_article_ids
         ]
         items = "".join(render_article_html(article, config.timezone) for article in articles)
         empty_state = "<p class='empty'>No new items found in this window.</p>" if not articles else ""
@@ -66,9 +70,26 @@ def render_html_report(digest: DigestResult, config: AppConfig) -> str:
         </section>
         """
 
-    subject = render_subject(digest.generated_at, config.timezone)
+    weekly_block = ""
+    if weekly_articles:
+        weekly_items = "".join(render_article_html(article, config.timezone) for article in weekly_articles)
+        weekly_block = f"""
+        <section class="card weekly" style="margin-top: 20px;">
+          <h2>Weekly Major Updates</h2>
+          <p class="count">{len(weekly_articles)} updates from the last 7 days</p>
+          {weekly_items}
+        </section>
+        """
+
+    subject = render_subject(digest.generated_at, config.timezone, weekly=bool(weekly_articles))
     generated_local = digest.generated_at.astimezone(ZoneInfo(config.timezone))
-    top_items = "".join(render_article_html(article, config.timezone) for article in digest.top_articles[:5])
+    top_items = "".join(render_article_html(article, config.timezone) for article in top_articles)
+    hero_line = f"{digest.total_articles} fresh items. Open a headline for the source details."
+    if weekly_articles:
+        hero_line = (
+            f"Weekly edition with {len(weekly_articles)} major updates from the last 7 days "
+            f"and {digest.total_articles} fresh items from today's scan."
+        )
     return f"""<!doctype html>
 <html lang="en">
   <head>
@@ -151,6 +172,9 @@ def render_html_report(digest: DigestResult, config: AppConfig) -> str:
       .warnings ul {{
         margin-bottom: 0;
       }}
+      .weekly {{
+        border: 1px solid #d8e8f8;
+      }}
       @media (max-width: 700px) {{
         body {{
           padding: 14px;
@@ -167,13 +191,14 @@ def render_html_report(digest: DigestResult, config: AppConfig) -> str:
   <body>
     <div class="container">
       <section class="hero">
-        <h1>Daily GenAI Intelligence Brief</h1>
-        <p>{digest.total_articles} fresh items. Open a headline for the source details.</p>
+        <h1>{escape("Weekly GenAI Intelligence Brief" if weekly_articles else "Daily GenAI Intelligence Brief")}</h1>
+        <p>{escape(hero_line)}</p>
         <p>Generated at {generated_local:%d %b %Y %I:%M %p %Z}.</p>
       </section>
+      {weekly_block}
       <section class="card" style="margin-top: 20px;">
         <h2>Top Signals</h2>
-        <p class="count">{min(5, len(digest.top_articles))} updates</p>
+        <p class="count">{len(top_articles)} updates</p>
         {top_items or "<p class='empty'>No top signals available.</p>"}
       </section>
       <div class="grid">
@@ -187,14 +212,28 @@ def render_html_report(digest: DigestResult, config: AppConfig) -> str:
 
 
 def render_text_report(digest: DigestResult, config: AppConfig) -> str:
-    lines = [render_subject(digest.generated_at, config.timezone), ""]
+    weekly_articles = digest.weekly_articles[:8]
+    weekly_article_ids = {article.id for article in weekly_articles}
+    top_articles = [article for article in digest.top_articles if article.id not in weekly_article_ids][:5]
+    top_article_ids = {article.id for article in top_articles}
+    lines = [
+        render_subject(digest.generated_at, config.timezone, weekly=bool(weekly_articles)),
+        "",
+    ]
     lines.append(f"Fresh items: {digest.total_articles}")
     lines.append("")
-    top_article_ids = {article.id for article in digest.top_articles[:5]}
-    if digest.top_articles:
+
+    if weekly_articles:
+        lines.append("Weekly Major Updates")
+        lines.append("--------------------")
+        for article in weekly_articles:
+            lines.append(render_article_text(article, config.timezone))
+        lines.append("")
+
+    if top_articles:
         lines.append("Top Signals")
         lines.append("-----------")
-        for article in digest.top_articles[:5]:
+        for article in top_articles:
             lines.append(render_article_text(article, config.timezone))
         lines.append("")
     for category_key, label in config.category_labels.items():
@@ -203,7 +242,7 @@ def render_text_report(digest: DigestResult, config: AppConfig) -> str:
         articles = [
             article
             for article in digest.grouped_articles.get(category_key, [])
-            if article.id not in top_article_ids
+            if article.id not in top_article_ids and article.id not in weekly_article_ids
         ]
         if not articles:
             lines.append("No new items found in this window.")

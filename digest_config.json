@@ -44,6 +44,11 @@
     }
   ],
   "rss_feeds": [],
+  "social": {
+    "platforms": ["reddit", "x"],
+    "max_items_per_category": 3,
+    "discord_channel_ids": []
+  },
   "arxiv": {
     "category": "research_papers",
     "search_query": "(all:\"generative ai\" OR all:\"large language model\" OR all:\"diffusion model\" OR all:\"multimodal model\" OR all:\"prompt injection\" OR all:\"LLM security\" OR all:\"AI security\")",

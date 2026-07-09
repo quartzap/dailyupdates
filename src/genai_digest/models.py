@@ -40,3 +40,4 @@ class DigestResult:
     top_articles: list[Article]
     total_articles: int
     warnings: list[str]
+    weekly_articles: list[Article] = field(default_factory=list)

@@ -1,6 +1,6 @@
 # GenAI Daily Report Utility
 
-This utility gathers fresh GenAI updates from free web sources, groups them into the areas you asked for, builds an HTML digest, and emails it on a schedule.
+This utility gathers fresh GenAI updates from free web sources, groups them into the areas you asked for, builds a concise email digest, attaches a PDF copy, and emails it on a schedule.
 
 ## What it covers
 
@@ -10,23 +10,26 @@ This utility gathers fresh GenAI updates from free web sources, groups them into
 - Industry use cases
 - Hardware developments
 - Cybersecurity and GenAI risk
+- Social signals from Reddit, X-focused public search, and optional Discord channels
 
 ## Free stack
 
 - Runtime: Python 3.12
 - News ingestion: Google News RSS search feeds
 - Research ingestion: arXiv public API
+- Social ingestion: Reddit public RSS, X-focused public search through indexed web/news results, and optional Discord bot channel reads
 - Storage: JSON file committed back to the repo for dedupe state
 - Scheduler and hosting: GitHub Actions scheduled workflow
 - Email delivery: Gmail SMTP or any SMTP account you already own
 - Audio brief: offline `espeak-ng` plus `ffmpeg` on the GitHub Actions runner
+- PDF attachment: `reportlab`
 
 ## Why this stack
 
 - No paid APIs are required.
 - No always-on server is required.
 - GitHub Actions can run this once every morning on a cron schedule.
-- The code uses only the Python standard library, so there are no package installs to manage.
+- Only small pinned packages are installed during the workflow for audio and PDF generation.
 
 ## Project structure
 
@@ -35,6 +38,7 @@ This utility gathers fresh GenAI updates from free web sources, groups them into
 - `src/genai_digest/fetchers.py`: web fetching and XML parsing
 - `src/genai_digest/pipeline.py`: filtering, categorization, scoring, dedupe
 - `src/genai_digest/report.py`: HTML and text report rendering
+- `src/genai_digest/pdf_report.py`: downloadable PDF report rendering
 - `src/genai_digest/audio.py`: podcast script and MP3 generation
 - `src/genai_digest/emailer.py`: SMTP email delivery
 - `state/sent_items.json`: saved IDs of already-sent items
@@ -84,6 +88,8 @@ This utility gathers fresh GenAI updates from free web sources, groups them into
    - `SMTP_USERNAME`
    - `SMTP_PASSWORD`
    - `SMTP_USE_TLS`
+   - `DISCORD_BOT_TOKEN` optional, only if you want Discord channel scanning
+   - `DISCORD_CHANNEL_IDS` optional, comma-separated channel IDs for the Discord bot to read
 3. The fastest way to prepare the secrets file locally is to fill in `.github-secrets`.
 4. Add the secrets either in the GitHub web UI or with GitHub CLI:
 
@@ -101,12 +107,17 @@ If you use Gmail SMTP, enable 2-Step Verification and generate an App Password f
 ## Notes
 
 - The current default source mix is Google News RSS plus arXiv.
+- Reddit search is enabled by default through public RSS.
+- X coverage uses a public indexed-search approximation for x.com/twitter.com results because X does not provide a reliable free global trending API.
+- Discord coverage is optional and only scans channels where you provide a bot token and channel IDs; Discord does not provide a free global public trending search API.
 - You can extend `digest_config.json` with curated RSS feeds later for company blogs or niche publications.
 - The report is saved into `reports/` on every run.
+- A PDF version of the report is generated and attached to every email.
+- Every Sunday, the email becomes a weekly edition with major updates from the last 7 days based on the saved article archive.
 - Scheduled workflows run in GitHub Actions using cron with timezone-aware scheduling.
 - The default email is intentionally concise. Open a headline to read the full source item.
 - Each item is assigned to one primary category so the same story does not repeat across sections.
-- The dedupe state stores both link-based IDs and title fingerprints to reduce repeat stories across days.
+- The dedupe state stores both link-based IDs, title fingerprints, and recent article metadata to reduce repeat stories across days and support the Sunday weekly summary.
 - The scheduled workflow attaches an MP3 audio brief when `AUDIO_ENABLED=true`.
 - The MP3 uses `edge-tts` with the `en-IN-NeerjaNeural` voice by default, then falls back to `espeak-ng` if the neural TTS call is unavailable.
 - NotebookLM can create Audio Overviews from uploaded sources, but this project does not automate NotebookLM directly because there is no stable public NotebookLM API in use here. A practical manual workflow is to upload the generated podcast script or HTML report into NotebookLM and generate an Audio Overview there.

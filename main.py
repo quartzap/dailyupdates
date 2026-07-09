@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -15,9 +15,11 @@ if str(SRC_PATH) not in sys.path:
 from genai_digest.audio import generate_mp3_from_script, render_podcast_script
 from genai_digest.config import load_config, load_dotenv
 from genai_digest.emailer import send_email
+from genai_digest.models import Article
+from genai_digest.pdf_report import write_pdf_report
 from genai_digest.pipeline import build_digest
 from genai_digest.report import render_html_report, render_subject, render_text_report
-from genai_digest.state import load_seen_items, save_seen_items
+from genai_digest.state import load_article_archive, load_seen_items, save_seen_items
 
 
 def parse_args() -> argparse.Namespace:
@@ -79,15 +81,52 @@ def env_int(name: str, default: int) -> int:
 
 
 def digest_seen_keys(digest) -> list[str]:
+    seen_keys: set[str] = set()
+    for article in digest_articles(digest):
+        seen_keys.update(article.seen_keys)
+    return sorted(seen_keys)
+
+
+def digest_articles(digest) -> list[Article]:
     articles = digest.top_articles + [
         article
         for items in digest.grouped_articles.values()
         for article in items
     ]
-    seen_keys: set[str] = set()
+    unique: dict[str, Article] = {}
     for article in articles:
-        seen_keys.update(article.seen_keys)
-    return sorted(seen_keys)
+        unique.setdefault(article.title_fingerprint, article)
+    return list(unique.values())
+
+
+def should_include_weekly_summary(now: datetime) -> bool:
+    return now.weekday() == 6
+
+
+def select_weekly_articles(
+    archive: list[Article],
+    digest,
+    now: datetime,
+    limit: int = 12,
+) -> list[Article]:
+    cutoff = now.astimezone(timezone.utc) - timedelta(days=7)
+    candidates = archive + digest_articles(digest)
+    unique: dict[str, Article] = {}
+    for article in candidates:
+        published = article.published_at.astimezone(timezone.utc)
+        if published < cutoff:
+            continue
+        existing = unique.get(article.title_fingerprint)
+        if existing is None or (article.score, published) > (
+            existing.score,
+            existing.published_at.astimezone(timezone.utc),
+        ):
+            unique[article.title_fingerprint] = article
+    return sorted(
+        unique.values(),
+        key=lambda article: (article.score, article.published_at),
+        reverse=True,
+    )[:limit]
 
 
 def main() -> int:
@@ -98,12 +137,15 @@ def main() -> int:
     now = datetime.now(ZoneInfo(config.timezone))
 
     seen_items = {} if args.sample else load_seen_items(config.state_path)
+    article_archive = [] if args.sample else load_article_archive(config.state_path)
     digest = build_digest(
         config=config,
         now=now,
         seen_ids=set(seen_items),
         sample_mode=args.sample,
     )
+    if should_include_weekly_summary(now):
+        digest.weekly_articles = select_weekly_articles(article_archive, digest, now)
 
     podcast_script = render_podcast_script(digest, config)
     podcast_script_path = config.reports_dir / f"genai-podcast-script-{now:%Y%m%d}.txt"
@@ -131,10 +173,12 @@ def main() -> int:
 
     html_report = render_html_report(digest, config)
     text_report = render_text_report(digest, config)
-    subject = render_subject(digest.generated_at, config.timezone)
+    subject = render_subject(digest.generated_at, config.timezone, weekly=bool(digest.weekly_articles))
     output_name = f"genai-digest-{now:%Y%m%d}.html"
     report_path = config.reports_dir / output_name
     report_path.write_text(html_report, encoding="utf-8")
+    pdf_path = config.reports_dir / f"genai-digest-{now:%Y%m%d}.pdf"
+    write_pdf_report(digest, config, pdf_path)
 
     should_send_email = not args.no_email and not args.sample
     if should_send_email:
@@ -151,7 +195,7 @@ def main() -> int:
                 subject,
                 html_report,
                 text_report,
-                attachments=audio_attachments,
+                attachments=[pdf_path, *audio_attachments],
             )
         except Exception as exc:
             safe_message = redact_error_message(str(exc), config)
@@ -164,11 +208,13 @@ def main() -> int:
             existing=seen_items,
             item_ids=digest_seen_keys(digest),
             now=now,
+            articles=digest_articles(digest),
         )
 
     print(f"Subject: {subject}")
     print(f"Fresh items: {digest.total_articles}")
     print(f"Report written to: {report_path}")
+    print(f"PDF report written to: {pdf_path}")
     print(f"Podcast script written to: {podcast_script_path}")
     if audio_attachments:
         print(f"Audio brief written to: {audio_attachments[0]}")

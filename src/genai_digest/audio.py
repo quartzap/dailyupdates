@@ -10,16 +10,26 @@ from .models import Article, DigestResult
 
 
 def render_podcast_script(digest: DigestResult, config: AppConfig) -> str:
-    top_article_ids = {article.id for article in digest.top_articles[:6]}
+    weekly_articles = digest.weekly_articles[:8]
+    weekly_article_ids = {article.id for article in weekly_articles}
+    top_articles = [article for article in digest.top_articles if article.id not in weekly_article_ids][:6]
+    top_article_ids = {article.id for article in top_articles}
+    edition = "Weekly GenAI intelligence brief." if weekly_articles else "Daily GenAI intelligence brief."
     lines = [
-        "Daily GenAI intelligence brief.",
+        edition,
         f"Today there are {digest.total_articles} fresh signals across the tracked areas.",
         "",
     ]
 
-    if digest.top_articles:
-        lines.append("First, the top signals.")
-        for index, article in enumerate(digest.top_articles[:6], start=1):
+    if weekly_articles:
+        lines.append("First, the major updates from the last seven days.")
+        for index, article in enumerate(weekly_articles, start=1):
+            lines.append(_article_audio_line(index, article))
+        lines.append("")
+
+    if top_articles:
+        lines.append("Next, today's top signals." if weekly_articles else "First, the top signals.")
+        for index, article in enumerate(top_articles, start=1):
             lines.append(_article_audio_line(index, article))
         lines.append("")
 
@@ -27,7 +37,7 @@ def render_podcast_script(digest: DigestResult, config: AppConfig) -> str:
         articles = [
             article
             for article in digest.grouped_articles.get(category_key, [])
-            if article.id not in top_article_ids
+            if article.id not in top_article_ids and article.id not in weekly_article_ids
         ][:3]
         if not articles:
             continue
