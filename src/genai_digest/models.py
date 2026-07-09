@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from hashlib import sha256
+import re
 
 
 @dataclass(slots=True)
@@ -21,6 +22,16 @@ class Article:
         payload = f"{self.url.strip()}|{self.title.strip().lower()}"
         return sha256(payload.encode("utf-8")).hexdigest()[:16]
 
+    @property
+    def title_fingerprint(self) -> str:
+        normalized_title = re.sub(r"[^a-z0-9]+", " ", self.title.lower()).strip()
+        payload = f"title|{normalized_title}"
+        return sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+    @property
+    def seen_keys(self) -> set[str]:
+        return {self.id, self.title_fingerprint}
+
 
 @dataclass(slots=True)
 class DigestResult:
@@ -29,4 +40,3 @@ class DigestResult:
     top_articles: list[Article]
     total_articles: int
     warnings: list[str]
-

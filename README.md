@@ -9,6 +9,7 @@ This utility gathers fresh GenAI updates from free web sources, groups them into
 - Research papers
 - Industry use cases
 - Hardware developments
+- Cybersecurity and GenAI risk
 
 ## Free stack
 
@@ -105,6 +106,7 @@ If you use Gmail SMTP, enable 2-Step Verification and generate an App Password f
 - Scheduled workflows run in GitHub Actions using cron with timezone-aware scheduling.
 - The default email is intentionally concise. Open a headline to read the full source item.
 - Each item is assigned to one primary category so the same story does not repeat across sections.
+- The dedupe state stores both link-based IDs and title fingerprints to reduce repeat stories across days.
 - The scheduled workflow attaches an MP3 audio brief when `AUDIO_ENABLED=true`.
 - The MP3 uses `edge-tts` with the `en-IN-NeerjaNeural` voice by default, then falls back to `espeak-ng` if the neural TTS call is unavailable.
 - NotebookLM can create Audio Overviews from uploaded sources, but this project does not automate NotebookLM directly because there is no stable public NotebookLM API in use here. A practical manual workflow is to upload the generated podcast script or HTML report into NotebookLM and generate an Audio Overview there.

@@ -78,6 +78,18 @@ def env_int(name: str, default: int) -> int:
     return int(value)
 
 
+def digest_seen_keys(digest) -> list[str]:
+    articles = digest.top_articles + [
+        article
+        for items in digest.grouped_articles.values()
+        for article in items
+    ]
+    seen_keys: set[str] = set()
+    for article in articles:
+        seen_keys.update(article.seen_keys)
+    return sorted(seen_keys)
+
+
 def main() -> int:
     args = parse_args()
     load_dotenv(PROJECT_ROOT / ".env")
@@ -150,11 +162,7 @@ def main() -> int:
         save_seen_items(
             config.state_path,
             existing=seen_items,
-            item_ids=[article.id for article in digest.top_articles] + [
-                article.id
-                for items in digest.grouped_articles.values()
-                for article in items
-            ],
+            item_ids=digest_seen_keys(digest),
             now=now,
         )
 

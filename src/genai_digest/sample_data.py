@@ -8,6 +8,15 @@ from .models import Article
 def build_sample_articles(now: datetime) -> list[Article]:
     return [
         Article(
+            title="Security team discloses prompt injection attack against enterprise AI agents",
+            url="https://example.com/genai-security",
+            source="Example Security",
+            published_at=now - timedelta(hours=1),
+            summary="The report shows how malicious instructions in documents can override agent guardrails.",
+            categories={"cybersecurity"},
+            source_type="news",
+        ),
+        Article(
             title="Model vendor launches enterprise multimodal assistant for finance teams",
             url="https://example.com/product-launch",
             source="Example News",
@@ -53,4 +62,3 @@ def build_sample_articles(now: datetime) -> list[Article]:
             source_type="paper",
         ),
     ]
-

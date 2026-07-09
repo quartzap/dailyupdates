@@ -90,7 +90,7 @@ def build_digest(
         if not article.categories:
             continue
         article.score = score_article(article, now.astimezone(timezone.utc))
-        if article.id in seen_ids:
+        if article.seen_keys & seen_ids:
             continue
         existing = deduped.get(article.id)
         if existing is None:

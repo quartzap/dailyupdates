@@ -7,6 +7,12 @@
   "state_path": "state/sent_items.json",
   "categories": [
     {
+      "key": "cybersecurity",
+      "label": "Cybersecurity & GenAI Risk",
+      "google_news_query": "(\"generative AI\" OR LLM OR \"large language model\" OR \"AI agent\") (cybersecurity OR \"cyber security\" OR \"AI security\" OR \"prompt injection\" OR jailbreak OR malware OR phishing OR deepfake OR ransomware OR \"data leak\")",
+      "keywords": ["cybersecurity", "cyber security", "ai security", "prompt injection", "jailbreak", "malware", "phishing", "deepfake", "ransomware", "data leak", "data leakage", "model poisoning", "supply chain", "zero day", "vulnerability", "red team"]
+    },
+    {
       "key": "product_announcements",
       "label": "Product Announcements",
       "google_news_query": "(\"generative AI\" OR LLM OR \"AI model\" OR copilot) (launch OR release OR announcement OR unveiled OR introduced)",
@@ -40,8 +46,7 @@
   "rss_feeds": [],
   "arxiv": {
     "category": "research_papers",
-    "search_query": "(all:\"generative ai\" OR all:\"large language model\" OR all:\"diffusion model\" OR all:\"multimodal model\")",
+    "search_query": "(all:\"generative ai\" OR all:\"large language model\" OR all:\"diffusion model\" OR all:\"multimodal model\" OR all:\"prompt injection\" OR all:\"LLM security\" OR all:\"AI security\")",
     "max_results": 12
   }
 }
-
