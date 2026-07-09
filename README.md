@@ -110,7 +110,7 @@ If you use Gmail SMTP, enable 2-Step Verification and generate an App Password f
 - The report is saved into `reports/` on every run.
 - A PDF version of the report is generated and attached to every email.
 - Every Sunday, the email becomes a weekly edition with major updates from the last 7 days based on the saved article archive.
-- Scheduled workflows run in GitHub Actions using cron with timezone-aware scheduling.
+- Scheduled workflows run in GitHub Actions using cron with timezone-aware scheduling. The current schedule is configured in `.github/workflows/daily_digest.yml` for 8:00 AM Asia/Kolkata.
 - The default email is intentionally concise. Open a headline to read the full source item.
 - Each item is assigned to one primary category so the same story does not repeat across sections.
 - The dedupe state stores both link-based IDs, title fingerprints, and recent article metadata to reduce repeat stories across days and support the Sunday weekly summary.
