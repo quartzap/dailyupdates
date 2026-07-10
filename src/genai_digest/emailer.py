@@ -15,14 +15,19 @@ def send_email(
     html_body: str,
     text_body: str,
     attachments: Sequence[Path] | None = None,
+    to_email: str | None = None,
 ) -> None:
     if not email_config.is_ready:
         raise ValueError("Email configuration is incomplete.")
 
+    effective_to_email = to_email or email_config.to_email
+    if not effective_to_email:
+        raise ValueError("Email recipient is incomplete.")
+
     message = EmailMessage()
     message["Subject"] = subject
     message["From"] = email_config.from_email
-    message["To"] = email_config.to_email
+    message["To"] = effective_to_email
     message.set_content(text_body)
     message.add_alternative(html_body, subtype="html")
 

@@ -33,6 +33,7 @@ class ArxivConfig:
 class EmailConfig:
     from_email: str | None
     to_email: str | None
+    pdf_only_email: str | None
     smtp_host: str | None
     smtp_port: int
     smtp_username: str | None
@@ -63,12 +64,14 @@ class EmailConfig:
         placeholder_values = {
             "GENAI_REPORT_FROM": {"your-email@gmail.com", "example@example.com"},
             "GENAI_REPORT_TO": {"your-email@gmail.com", "example@example.com"},
+            "GENAI_REPORT_PDF_ONLY_TO": {"your-email@gmail.com", "example@example.com"},
             "SMTP_USERNAME": {"your-email@gmail.com", "example@example.com"},
             "SMTP_PASSWORD": {"your-app-password", "changeme", "example-password"},
         }
         field_values = {
             "GENAI_REPORT_FROM": self.from_email,
             "GENAI_REPORT_TO": self.to_email,
+            "GENAI_REPORT_PDF_ONLY_TO": self.pdf_only_email,
             "SMTP_USERNAME": self.smtp_username,
             "SMTP_PASSWORD": self.smtp_password,
         }
@@ -83,6 +86,7 @@ class EmailConfig:
         values = [
             self.from_email,
             self.to_email,
+            self.pdf_only_email,
             self.smtp_username,
             self.smtp_password,
         ]
@@ -191,6 +195,7 @@ def load_config(project_root: Path, config_path: Path | None = None) -> AppConfi
     email = EmailConfig(
         from_email=env_value(env, "GENAI_REPORT_FROM"),
         to_email=env_value(env, "GENAI_REPORT_TO"),
+        pdf_only_email=env_value(env, "GENAI_REPORT_PDF_ONLY_TO"),
         smtp_host=env_value(env, "SMTP_HOST"),
         smtp_port=env_int(env, "SMTP_PORT", 587),
         smtp_username=env_value(env, "SMTP_USERNAME"),

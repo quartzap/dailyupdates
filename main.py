@@ -58,6 +58,7 @@ def redact_error_message(message: str, config) -> str:
     replacements = {
         config.email.from_email: "<redacted:GENAI_REPORT_FROM>",
         config.email.to_email: "<redacted:GENAI_REPORT_TO>",
+        config.email.pdf_only_email: "<redacted:GENAI_REPORT_PDF_ONLY_TO>",
         config.email.smtp_username: "<redacted:SMTP_USERNAME>",
         config.email.smtp_password: "<redacted:SMTP_PASSWORD>",
     }
@@ -230,13 +231,23 @@ def main() -> int:
                 + " Populate .env or GitHub Actions secrets before sending."
             )
         try:
+            full_attachments = [pdf_path, *audio_attachments]
             send_email(
                 config.email,
                 subject,
                 html_report,
                 text_report,
-                attachments=[pdf_path, *audio_attachments],
+                attachments=full_attachments,
             )
+            if config.email.pdf_only_email:
+                send_email(
+                    config.email,
+                    subject,
+                    html_report,
+                    text_report,
+                    attachments=[pdf_path],
+                    to_email=config.email.pdf_only_email,
+                )
         except Exception as exc:
             safe_message = redact_error_message(str(exc), config)
             raise SystemExit(
@@ -259,7 +270,8 @@ def main() -> int:
     if audio_attachments:
         print(f"Audio brief written to: {audio_attachments[0]}")
     if should_send_email:
-        print("Email delivery: sent")
+        delivery_mode = "full and PDF-only emails sent" if config.email.pdf_only_email else "sent"
+        print(f"Email delivery: {delivery_mode}")
     elif args.sample:
         print("Email delivery: skipped in sample mode")
     else:

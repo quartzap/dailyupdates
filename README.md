@@ -83,6 +83,7 @@ This utility gathers fresh GenAI updates from free web sources, groups them into
 2. Add these repository secrets:
    - `GENAI_REPORT_FROM`
    - `GENAI_REPORT_TO`
+   - `GENAI_REPORT_PDF_ONLY_TO` optional, recipients that should get the PDF attachment but not the MP3
    - `SMTP_HOST`
    - `SMTP_PORT`
    - `SMTP_USERNAME`
@@ -111,6 +112,7 @@ If you use Gmail SMTP, enable 2-Step Verification and generate an App Password f
 - You can extend `digest_config.json` with curated RSS feeds later for company blogs or niche publications.
 - The report is saved into `reports/` on every run.
 - A PDF version of the report is generated and attached to every email.
+- `GENAI_REPORT_TO` receives the full report email with the PDF and, when audio is enabled, the MP3 attachment. Optional `GENAI_REPORT_PDF_ONLY_TO` receives a separate email with only the PDF attachment.
 - Every Sunday, the email becomes a weekly edition with major updates from the last 7 days based on the saved article archive.
 - Scheduled workflows run in GitHub Actions using cron with timezone-aware scheduling. The current schedule is configured in `.github/workflows/daily_digest.yml` for 8:00 AM Asia/Kolkata.
 - The default email is intentionally concise. Open a headline to read the full source item.

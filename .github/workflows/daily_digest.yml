@@ -36,6 +36,7 @@ jobs:
         env:
           GENAI_REPORT_FROM: ${{ secrets.GENAI_REPORT_FROM }}
           GENAI_REPORT_TO: ${{ secrets.GENAI_REPORT_TO }}
+          GENAI_REPORT_PDF_ONLY_TO: ${{ secrets.GENAI_REPORT_PDF_ONLY_TO }}
           SMTP_HOST: ${{ secrets.SMTP_HOST }}
           SMTP_PORT: ${{ secrets.SMTP_PORT }}
           SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
