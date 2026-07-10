@@ -14,6 +14,7 @@ jobs:
   run-digest:
     permissions:
       contents: write
+      models: read
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -42,9 +43,13 @@ jobs:
           SMTP_USE_TLS: ${{ secrets.SMTP_USE_TLS }}
           DIGEST_TIMEZONE: Asia/Kolkata
           AUDIO_ENABLED: "true"
-          AUDIO_VOICE: en-IN-NeerjaNeural
+          AUDIO_VOICE: en-US-AndrewMultilingualNeural
+          AUDIO_VOICE_B: en-US-EmmaMultilingualNeural
           AUDIO_RATE: "+0%"
           AUDIO_SPEED: "160"
+          LLM_SCRIPT_ENABLED: "true"
+          LLM_MODEL: openai/gpt-4o-mini
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SOCIAL_PLATFORMS: x
           SOCIAL_MAX_ITEMS_PER_CATEGORY: "3"
         run: python main.py

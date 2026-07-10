@@ -30,9 +30,15 @@ def write_pdf_report(digest: DigestResult, config: AppConfig, output_path: Path)
     )
 
     weekly_articles = digest.weekly_articles[:8]
-    weekly_article_ids = {article.id for article in weekly_articles}
-    top_articles = [article for article in digest.top_articles if article.id not in weekly_article_ids][:5]
-    top_article_ids = {article.id for article in top_articles}
+    weekly_article_ids = {article.title_fingerprint for article in weekly_articles}
+    highlight_articles = [] if weekly_articles else digest.highlight_articles[:5]
+    highlight_ids = {article.title_fingerprint for article in highlight_articles}
+    top_articles = [
+        article
+        for article in digest.top_articles
+        if article.title_fingerprint not in weekly_article_ids and article.title_fingerprint not in highlight_ids
+    ][:5]
+    top_article_ids = {article.title_fingerprint for article in top_articles}
 
     story: list = []
     generated_local = digest.generated_at.astimezone(ZoneInfo(config.timezone))
@@ -48,6 +54,16 @@ def write_pdf_report(digest: DigestResult, config: AppConfig, output_path: Path)
         )
     )
     story.append(Spacer(1, 0.18 * inch))
+
+    if highlight_articles:
+        add_section(
+            story,
+            "Week Highlights",
+            f"Top {len(highlight_articles)} updates from the last 7 days.",
+            highlight_articles,
+            config.timezone,
+            styles,
+        )
 
     if weekly_articles:
         add_section(
@@ -73,7 +89,9 @@ def write_pdf_report(digest: DigestResult, config: AppConfig, output_path: Path)
         articles = [
             article
             for article in digest.grouped_articles.get(category_key, [])
-            if article.id not in top_article_ids and article.id not in weekly_article_ids
+            if article.title_fingerprint not in top_article_ids
+            and article.title_fingerprint not in weekly_article_ids
+            and article.title_fingerprint not in highlight_ids
         ]
         add_section(
             story,

@@ -38,14 +38,22 @@ def render_html_report(digest: DigestResult, config: AppConfig) -> str:
     category_blocks: list[str] = []
     labels = config.category_labels
     weekly_articles = digest.weekly_articles[:8]
-    weekly_article_ids = {article.id for article in weekly_articles}
-    top_articles = [article for article in digest.top_articles if article.id not in weekly_article_ids][:5]
-    top_article_ids = {article.id for article in top_articles}
+    weekly_article_ids = {article.title_fingerprint for article in weekly_articles}
+    highlight_articles = [] if weekly_articles else digest.highlight_articles[:5]
+    highlight_ids = {article.title_fingerprint for article in highlight_articles}
+    top_articles = [
+        article
+        for article in digest.top_articles
+        if article.title_fingerprint not in weekly_article_ids and article.title_fingerprint not in highlight_ids
+    ][:5]
+    top_article_ids = {article.title_fingerprint for article in top_articles}
     for category_key, label in labels.items():
         articles = [
             article
             for article in digest.grouped_articles.get(category_key, [])
-            if article.id not in top_article_ids and article.id not in weekly_article_ids
+            if article.title_fingerprint not in top_article_ids
+            and article.title_fingerprint not in weekly_article_ids
+            and article.title_fingerprint not in highlight_ids
         ]
         items = "".join(render_article_html(article, config.timezone) for article in articles)
         empty_state = "<p class='empty'>No new items found in this window.</p>" if not articles else ""
@@ -78,6 +86,19 @@ def render_html_report(digest: DigestResult, config: AppConfig) -> str:
           <h2>Weekly Major Updates</h2>
           <p class="count">{len(weekly_articles)} updates from the last 7 days</p>
           {weekly_items}
+        </section>
+        """
+
+    highlights_block = ""
+    if highlight_articles:
+        highlight_items = "".join(
+            render_article_html(article, config.timezone) for article in highlight_articles
+        )
+        highlights_block = f"""
+        <section class="card highlights" style="margin-top: 20px;">
+          <h2>&#128204; Week Highlights</h2>
+          <p class="count">Top {len(highlight_articles)} updates from the last 7 days</p>
+          {highlight_items}
         </section>
         """
 
@@ -175,6 +196,10 @@ def render_html_report(digest: DigestResult, config: AppConfig) -> str:
       .weekly {{
         border: 1px solid #d8e8f8;
       }}
+      .highlights {{
+        border: 2px solid #0d5ea6;
+        background: #f4f9ff;
+      }}
       @media (max-width: 700px) {{
         body {{
           padding: 14px;
@@ -195,6 +220,7 @@ def render_html_report(digest: DigestResult, config: AppConfig) -> str:
         <p>{escape(hero_line)}</p>
         <p>Generated at {generated_local:%d %b %Y %I:%M %p %Z}.</p>
       </section>
+      {highlights_block}
       {weekly_block}
       <section class="card" style="margin-top: 20px;">
         <h2>Top Signals</h2>
@@ -213,15 +239,28 @@ def render_html_report(digest: DigestResult, config: AppConfig) -> str:
 
 def render_text_report(digest: DigestResult, config: AppConfig) -> str:
     weekly_articles = digest.weekly_articles[:8]
-    weekly_article_ids = {article.id for article in weekly_articles}
-    top_articles = [article for article in digest.top_articles if article.id not in weekly_article_ids][:5]
-    top_article_ids = {article.id for article in top_articles}
+    weekly_article_ids = {article.title_fingerprint for article in weekly_articles}
+    highlight_articles = [] if weekly_articles else digest.highlight_articles[:5]
+    highlight_ids = {article.title_fingerprint for article in highlight_articles}
+    top_articles = [
+        article
+        for article in digest.top_articles
+        if article.title_fingerprint not in weekly_article_ids and article.title_fingerprint not in highlight_ids
+    ][:5]
+    top_article_ids = {article.title_fingerprint for article in top_articles}
     lines = [
         render_subject(digest.generated_at, config.timezone, weekly=bool(weekly_articles)),
         "",
     ]
     lines.append(f"Fresh items: {digest.total_articles}")
     lines.append("")
+
+    if highlight_articles:
+        lines.append("Week Highlights")
+        lines.append("---------------")
+        for article in highlight_articles:
+            lines.append(render_article_text(article, config.timezone))
+        lines.append("")
 
     if weekly_articles:
         lines.append("Weekly Major Updates")
@@ -242,7 +281,9 @@ def render_text_report(digest: DigestResult, config: AppConfig) -> str:
         articles = [
             article
             for article in digest.grouped_articles.get(category_key, [])
-            if article.id not in top_article_ids and article.id not in weekly_article_ids
+            if article.title_fingerprint not in top_article_ids
+            and article.title_fingerprint not in weekly_article_ids
+            and article.title_fingerprint not in highlight_ids
         ]
         if not articles:
             lines.append("No new items found in this window.")

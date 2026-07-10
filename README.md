@@ -105,6 +105,8 @@ If you use Gmail SMTP, enable 2-Step Verification and generate an App Password f
 ## Notes
 
 - The current default source mix is Google News RSS plus arXiv.
+- Google News redirect links (`news.google.com/rss/articles/...`) are resolved to the original publisher URLs before rendering. Resolution tries a zero-cost base64 decode first, then an HTTP redirect follow, then Google's internal decode endpoint. Any failure keeps the original link and adds a warning. Control with `RESOLVE_LINKS` (default true) and `RESOLVE_LINKS_MAX` (default 50 per run).
+- Daily editions pin a "Week Highlights" section at the top of the email, PDF, and text report: the top 5 highest-scoring stories from the last 7 days, drawn from the article archive. Highlighted stories are excluded from the sections below so nothing appears twice. Sunday weekly editions keep the fuller "Weekly Major Updates" section instead.
 - X coverage uses a public indexed-search approximation for x.com/twitter.com results because X does not provide a reliable free global trending API.
 - You can extend `digest_config.json` with curated RSS feeds later for company blogs or niche publications.
 - The report is saved into `reports/` on every run.
@@ -115,5 +117,7 @@ If you use Gmail SMTP, enable 2-Step Verification and generate an App Password f
 - Each item is assigned to one primary category so the same story does not repeat across sections.
 - The dedupe state stores both link-based IDs, title fingerprints, and recent article metadata to reduce repeat stories across days and support the Sunday weekly summary.
 - The scheduled workflow attaches an MP3 audio brief when `AUDIO_ENABLED=true`.
-- The MP3 uses `edge-tts` with the `en-IN-NeerjaNeural` voice by default, then falls back to `espeak-ng` if the neural TTS call is unavailable.
+- The MP3 is a two-host, NotebookLM-style conversation. Each speaker turn is synthesized with `edge-tts` (defaults: `en-US-AndrewMultilingualNeural` and `en-US-EmmaMultilingualNeural`, override with `AUDIO_VOICE` / `AUDIO_VOICE_B`), then the turns are stitched with `ffmpeg` with short pauses and loudness normalization. If `edge-tts` is unavailable the audio falls back to a single-voice `espeak-ng` read of the script.
+- Summaries that merely repeat the headline (a quirk of Google News RSS descriptions) are dropped at parse time, so headlines are no longer spoken twice.
+- Optional: set `LLM_SCRIPT_ENABLED=true` to rewrite the template dialogue into a more natural conversation using GitHub Models (free, uses the built-in `GITHUB_TOKEN` with `models: read` permission — no paid API). On any failure the deterministic template script is used, so the pipeline never breaks.
 - NotebookLM can create Audio Overviews from uploaded sources, but this project does not automate NotebookLM directly because there is no stable public NotebookLM API in use here. A practical manual workflow is to upload the generated podcast script or HTML report into NotebookLM and generate an Audio Overview there.

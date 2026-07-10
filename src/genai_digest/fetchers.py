@@ -40,6 +40,39 @@ def clean_text(value: str) -> str:
     return normalized.strip()
 
 
+def _normalize_for_compare(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", (value or "").lower()).strip()
+
+
+def dedupe_summary(title: str, summary: str) -> str:
+    """Drop summaries that merely repeat the title.
+
+    Google News RSS descriptions are an HTML anchor whose text is the article
+    title (plus the publisher name), so after tag stripping the summary is a
+    near-duplicate of the title. Keeping it makes the email, PDF, and audio
+    read every headline twice.
+    """
+    normalized_title = _normalize_for_compare(title)
+    normalized_summary = _normalize_for_compare(summary)
+    if not normalized_summary or not normalized_title:
+        return summary or ""
+    if normalized_summary == normalized_title:
+        return ""
+    if normalized_summary.startswith(normalized_title):
+        # The remainder is usually just the publisher name; keep it only if it
+        # looks like real added content.
+        remainder_tokens = normalized_summary[len(normalized_title):].split()
+        if len(remainder_tokens) <= 4:
+            return ""
+    if normalized_title.startswith(normalized_summary):
+        return ""
+    title_tokens = set(normalized_title.split())
+    summary_tokens = set(normalized_summary.split())
+    if summary_tokens and len(summary_tokens & title_tokens) / len(summary_tokens) >= 0.9:
+        return ""
+    return summary
+
+
 def parse_datetime(raw_value: str | None) -> datetime | None:
     if not raw_value:
         return None
@@ -73,6 +106,7 @@ def parse_rss_feed(
         published = parse_datetime(item.findtext("pubDate")) or datetime.now(timezone.utc)
         if not title or not link:
             continue
+        description = dedupe_summary(title, description)
         articles.append(
             Article(
                 title=title,

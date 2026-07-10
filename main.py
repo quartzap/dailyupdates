@@ -17,9 +17,10 @@ from genai_digest.config import load_config, load_dotenv
 from genai_digest.emailer import send_email
 from genai_digest.models import Article
 from genai_digest.pdf_report import write_pdf_report
-from genai_digest.pipeline import build_digest
+from genai_digest.pipeline import build_digest, canonicalize_url
 from genai_digest.report import render_html_report, render_subject, render_text_report
 from genai_digest.state import load_article_archive, load_seen_items, save_seen_items
+from genai_digest.url_resolver import resolve_article_links
 
 
 def parse_args() -> argparse.Namespace:
@@ -103,6 +104,28 @@ def should_include_weekly_summary(now: datetime) -> bool:
     return now.weekday() == 6
 
 
+def display_priority_articles(digest) -> list[Article]:
+    """Visible articles ordered by prominence, deduped by object identity.
+
+    Ordering matters: the link-resolution budget is spent on the most visible
+    sections first (highlights, weekly, top signals, then category lists).
+    """
+    ordered = (
+        digest.highlight_articles[:5]
+        + digest.weekly_articles[:8]
+        + digest.top_articles[:10]
+        + [article for items in digest.grouped_articles.values() for article in items]
+    )
+    seen: set[int] = set()
+    unique: list[Article] = []
+    for article in ordered:
+        if id(article) in seen:
+            continue
+        seen.add(id(article))
+        unique.append(article)
+    return unique
+
+
 def select_weekly_articles(
     archive: list[Article],
     digest,
@@ -146,6 +169,22 @@ def main() -> int:
     )
     if should_include_weekly_summary(now):
         digest.weekly_articles = select_weekly_articles(article_archive, digest, now)
+    else:
+        digest.highlight_articles = select_weekly_articles(article_archive, digest, now, limit=5)
+
+    if env_bool("RESOLVE_LINKS", True):
+        display_articles = display_priority_articles(digest)
+        resolved_count, failed_count = resolve_article_links(
+            display_articles,
+            timeout_seconds=config.request_timeout_seconds,
+            max_resolutions=env_int("RESOLVE_LINKS_MAX", 50),
+        )
+        for article in display_articles:
+            article.url = canonicalize_url(article.url)
+        if failed_count:
+            digest.warnings.append(
+                f"Link resolution: {resolved_count} resolved, {failed_count} kept as Google News links."
+            )
 
     podcast_script = render_podcast_script(digest, config)
     podcast_script_path = config.reports_dir / f"genai-podcast-script-{now:%Y%m%d}.txt"
@@ -159,11 +198,12 @@ def main() -> int:
             audio_engine = generate_mp3_from_script(
                 podcast_script_path,
                 audio_path,
-                voice=os.environ.get("AUDIO_VOICE", "en-IN-NeerjaNeural"),
+                voice=os.environ.get("AUDIO_VOICE", "en-US-AndrewMultilingualNeural"),
+                voice_b=os.environ.get("AUDIO_VOICE_B", "en-US-EmmaMultilingualNeural"),
                 rate=os.environ.get("AUDIO_RATE", "+0%"),
                 speed=env_int("AUDIO_SPEED", 160),
             )
-            if audio_engine != "edge-tts":
+            if not audio_engine.startswith("edge-tts"):
                 digest.warnings.append(
                     "Audio used fallback speech engine; install edge-tts for more natural audio."
                 )
