@@ -9,7 +9,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
-from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
 from .config import AppConfig
 from .models import Article, DigestResult
@@ -103,11 +103,6 @@ def write_pdf_report(digest: DigestResult, config: AppConfig, output_path: Path)
             empty_text="No new items found in this window.",
         )
 
-    if digest.warnings:
-        story.append(PageBreak())
-        story.append(Paragraph("Source Warnings", styles["SectionTitle"]))
-        for warning in digest.warnings:
-            story.append(Paragraph(xml_escape(warning), styles["Warning"]))
 
     doc.build(story, onFirstPage=draw_footer, onLaterPages=draw_footer)
     return output_path
@@ -164,14 +159,6 @@ def build_styles() -> dict[str, ParagraphStyle]:
             leading=12,
             textColor=colors.HexColor("#607080"),
             spaceAfter=8,
-        ),
-        "Warning": ParagraphStyle(
-            "Warning",
-            parent=styles["Normal"],
-            fontSize=9,
-            leading=12,
-            textColor=colors.HexColor("#7a4b00"),
-            spaceAfter=6,
         ),
     }
 

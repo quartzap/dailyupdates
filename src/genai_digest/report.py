@@ -68,16 +68,6 @@ def render_html_report(digest: DigestResult, config: AppConfig) -> str:
             """
         )
 
-    warning_block = ""
-    if digest.warnings:
-        warnings_html = "".join(f"<li>{escape(item)}</li>" for item in digest.warnings)
-        warning_block = f"""
-        <section class="card warnings">
-          <h2>Source Warnings</h2>
-          <ul>{warnings_html}</ul>
-        </section>
-        """
-
     weekly_block = ""
     if weekly_articles:
         weekly_items = "".join(render_article_html(article, config.timezone) for article in weekly_articles)
@@ -190,9 +180,6 @@ def render_html_report(digest: DigestResult, config: AppConfig) -> str:
         color: #607080;
         margin-bottom: 0;
       }}
-      .warnings ul {{
-        margin-bottom: 0;
-      }}
       .weekly {{
         border: 1px solid #d8e8f8;
       }}
@@ -230,7 +217,6 @@ def render_html_report(digest: DigestResult, config: AppConfig) -> str:
       <div class="grid">
         {''.join(category_blocks)}
       </div>
-      {warning_block}
     </div>
   </body>
 </html>
@@ -292,10 +278,5 @@ def render_text_report(digest: DigestResult, config: AppConfig) -> str:
                 lines.append(render_article_text(article, config.timezone))
         lines.append("")
 
-    if digest.warnings:
-        lines.append("Source Warnings")
-        lines.append("---------------")
-        lines.extend(f"- {warning}" for warning in digest.warnings)
-        lines.append("")
 
     return "\n".join(lines).strip() + "\n"
