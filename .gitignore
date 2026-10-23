@@ -3,3 +3,5 @@ __pycache__/
 .env
 .github-secrets
 reports/
+models/piper/
+.venv-audio/

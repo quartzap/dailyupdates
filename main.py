@@ -204,10 +204,7 @@ def main() -> int:
                 rate=os.environ.get("AUDIO_RATE", "+0%"),
                 speed=env_int("AUDIO_SPEED", 160),
             )
-            if not audio_engine.startswith("edge-tts"):
-                digest.warnings.append(
-                    "Audio used fallback speech engine; install edge-tts for more natural audio."
-                )
+            print(f"Audio engine: {audio_engine}")
             audio_attachments.append(audio_path)
         except Exception as exc:
             digest.warnings.append(f"Audio generation failed: {exc}")

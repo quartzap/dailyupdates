@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import os
 import re
 import shutil
 import subprocess
 import tempfile
+import wave
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -18,6 +21,7 @@ TRAILING_SOURCE_RE = re.compile(r"\s+[-\u2013\u2014|]\s+[^-\u2013\u2014|]{2,40}$
 
 DEFAULT_VOICE_A = "en-US-AndrewMultilingualNeural"
 DEFAULT_VOICE_B = "en-US-EmmaMultilingualNeural"
+LOGGER = logging.getLogger(__name__)
 
 _TRANSITIONS_LEAD = [
     "First up",
@@ -28,15 +32,6 @@ _TRANSITIONS_LEAD = [
     "And then there's this",
     "Another big one",
     "Also worth a mention",
-]
-
-_REACTIONS = [
-    "Yeah, that's a notable one.",
-    "Right, and there's more where that came from.",
-    "Interesting. Okay, what else?",
-    "That one's worth keeping an eye on.",
-    "Good to know. Keep going.",
-    "Makes sense given where the market's heading.",
 ]
 
 _SECTION_HANDOFFS = [
@@ -125,11 +120,8 @@ def build_dialogue(digest: DigestResult, config: AppConfig) -> list[DialogueTurn
             lead_text += f" That's from {article.source}."
         turns.append(DialogueTurn(lead, lead_text))
         summary = _compact_for_audio(article.summary) if article.summary else ""
-        if summary:
-            turns.append(DialogueTurn(follow, f"So the short version is: {summary}"))
-        else:
-            reaction = _REACTIONS[(seed + story_index) % len(_REACTIONS)]
-            turns.append(DialogueTurn(follow, reaction))
+        if summary and clean_title_for_audio(summary, article.source).rstrip(".").casefold() != title.rstrip(".").casefold():
+            turns.append(DialogueTurn(follow, summary))
         story_index += 1
 
     def speakers_for(index: int) -> tuple[str, str]:
@@ -243,8 +235,20 @@ def generate_mp3_from_script(
             return "edge-tts-dialogue"
         _generate_with_edge_tts(script_to_plain_text(text), output_path, voice=voice, rate=rate)
         return "edge-tts"
-    except Exception:
-        return _generate_with_espeak(script_path, output_path, speed=speed)
+    except Exception as exc:
+        # Exception messages may contain service URLs/tokens; log only the type.
+        LOGGER.warning("Edge neural audio unavailable (%s); trying local Piper neural voices.", type(exc).__name__)
+        output_path.unlink(missing_ok=True)
+        try:
+            _generate_with_piper(turns or [DialogueTurn(HOST_A, text)], output_path)
+        except Exception as fallback_exc:
+            output_path.unlink(missing_ok=True)
+            raise RuntimeError(
+                "Neural audio unavailable (Edge: " + type(exc).__name__
+                + "; Piper: " + type(fallback_exc).__name__
+                + "). PDF delivery can continue; no robotic MP3 was substituted."
+            ) from None
+        return "piper-dialogue"
 
 
 def _generate_dialogue_with_edge_tts(
@@ -255,16 +259,13 @@ def _generate_dialogue_with_edge_tts(
     rate: str,
 ) -> None:
     """Synthesize each turn with the speaker's voice and stitch with ffmpeg."""
-    import edge_tts
-
     voices = {HOST_A: voice_a, HOST_B: voice_b}
 
     async def synthesize_all(segment_dir: Path) -> list[Path]:
         paths: list[Path] = []
         for index, turn in enumerate(turns):
             segment_path = segment_dir / f"seg_{index:03d}.mp3"
-            communicate = edge_tts.Communicate(turn.text, voice=voices[turn.speaker], rate=rate)
-            await communicate.save(str(segment_path))
+            await _save_edge_segment(turn.text, segment_path, voices[turn.speaker], rate)
             paths.append(segment_path)
         return paths
 
@@ -292,9 +293,9 @@ def _generate_dialogue_with_edge_tts(
         concat_list = segment_dir / "list.txt"
         lines = []
         for index, segment in enumerate(segment_paths):
-            lines.append(f"file '{segment}'")
+            lines.append(f"file '{segment.name}'")
             if index < len(segment_paths) - 1:
-                lines.append(f"file '{silence_path}'")
+                lines.append(f"file '{silence_path.name}'")
         concat_list.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
         subprocess.run(
@@ -310,48 +311,70 @@ def _generate_dialogue_with_edge_tts(
 
 
 def _generate_with_edge_tts(text: str, output_path: Path, voice: str, rate: str) -> str:
-    import edge_tts
-
-    async def synthesize() -> None:
-        communicate = edge_tts.Communicate(text, voice=voice, rate=rate)
-        await communicate.save(str(output_path))
-
-    asyncio.run(synthesize())
+    asyncio.run(_save_edge_segment(text, output_path, voice, rate))
     return "edge-tts"
 
 
-def _generate_with_espeak(
-    script_path: Path,
-    output_path: Path,
-    voice: str = "en-us",
-    speed: int = 160,
-) -> str:
-    espeak_path = shutil.which("espeak-ng") or shutil.which("espeak")
-    ffmpeg_path = shutil.which("ffmpeg")
-    if not espeak_path:
-        raise RuntimeError("espeak-ng or espeak is not installed.")
-    if not ffmpeg_path:
-        raise RuntimeError("ffmpeg is not installed.")
+async def _save_edge_segment(text: str, path: Path, voice: str, rate: str) -> None:
+    import edge_tts
 
-    plain_text = script_to_plain_text(script_path.read_text(encoding="utf-8"))
-    plain_path = output_path.with_suffix(".plain.txt")
-    plain_path.write_text(plain_text, encoding="utf-8")
+    for attempt in range(3):
+        try:
+            await asyncio.wait_for(
+                edge_tts.Communicate(text, voice=voice, rate=rate).save(str(path)),
+                timeout=45,
+            )
+            if not path.exists() or path.stat().st_size == 0:
+                raise RuntimeError("Empty neural audio segment")
+            return
+        except Exception as exc:
+            path.unlink(missing_ok=True)
+            # Authentication/protocol failures do not improve with retries.
+            if getattr(exc, "status", None) in {401, 403} or attempt == 2:
+                raise
+            await asyncio.sleep(2 ** attempt)
 
-    wav_path = output_path.with_suffix(".wav")
-    subprocess.run(
-        [espeak_path, "-v", voice, "-s", str(speed), "-f", str(plain_path), "-w", str(wav_path)],
-        check=True, capture_output=True, text=True,
-    )
-    subprocess.run(
-        [
-            ffmpeg_path, "-y", "-loglevel", "error", "-i", str(wav_path),
-            "-codec:a", "libmp3lame", "-b:a", "64k", str(output_path),
-        ],
-        check=True, capture_output=True, text=True,
-    )
-    wav_path.unlink(missing_ok=True)
-    plain_path.unlink(missing_ok=True)
-    return "espeak"
+
+def _generate_with_piper(turns: list[DialogueTurn], output_path: Path) -> None:
+    """CPU-only neural speech, independent of the Edge online service."""
+    from piper import PiperVoice
+
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise RuntimeError("ffmpeg is required for neural podcast encoding")
+    model_dir = Path(os.environ.get("PIPER_MODEL_DIR", "models/piper"))
+    voices = {
+        HOST_A: PiperVoice.load(str(model_dir / "en_US-ryan-medium.onnx")),
+        HOST_B: PiperVoice.load(str(model_dir / "en_US-lessac-medium.onnx")),
+    }
+    with tempfile.TemporaryDirectory(prefix="genai-piper-") as tmp:
+        folder = Path(tmp)
+        combined = folder / "dialogue.wav"
+        expected_format = None
+        with wave.open(str(combined), "wb") as target:
+            for index, turn in enumerate(turns):
+                segment = folder / "turn.wav"
+                with wave.open(str(segment), "wb") as wav:
+                    voices[turn.speaker].synthesize_wav(turn.text, wav)
+                with wave.open(str(segment), "rb") as wav:
+                    audio_format = (wav.getnchannels(), wav.getsampwidth(), wav.getframerate())
+                    if expected_format is None:
+                        expected_format = audio_format
+                        target.setnchannels(audio_format[0])
+                        target.setsampwidth(audio_format[1])
+                        target.setframerate(audio_format[2])
+                    elif audio_format != expected_format:
+                        raise RuntimeError("Piper voices must use matching audio formats")
+                    target.writeframes(wav.readframes(wav.getnframes()))
+                if index < len(turns) - 1:
+                    pause = 0.24 if turn.text.endswith("?") else 0.38
+                    target.writeframes(b"\x00" * int(audio_format[2] * pause) * audio_format[0] * audio_format[1])
+        subprocess.run(
+            [ffmpeg, "-y", "-loglevel", "error", "-i", str(combined),
+             "-af", "loudnorm=I=-18:TP=-2:LRA=11", "-codec:a", "libmp3lame",
+             "-b:a", "96k", "-ar", "24000", "-ac", "1", str(output_path)],
+            check=True, capture_output=True, timeout=120,
+        )
 
 
 def _compact_for_audio(text: str, max_chars: int = 220) -> str:
